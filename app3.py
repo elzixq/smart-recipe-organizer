@@ -74,7 +74,7 @@ def organize_files(target_dir=".", dry_run=False):
         print(f"\n[+] Successfully organized {moved_count} recipe file(s).")
 
     return stats
-    def load_recipe_data(recipe_path):
+def load_recipe_data(recipe_path):
     try:
         with open(recipe_path, "r", encoding="utf-8") as file:
             lines = [line.strip() for line in file if line.strip()]
@@ -154,8 +154,7 @@ def suggest_recipes(target_dir, available_ingredients, category_choice):
             print("  * Instructions:")
             for step in instructions:
                 print(f"    {step}")
-
- def read_ingredients(filename="ingredients.txt"):
+def read_ingredients(filename="ingredients.txt"):
     ingredients = []
     try:
         with open(filename, "r", encoding="utf-8") as file:
