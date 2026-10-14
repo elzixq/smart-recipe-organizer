@@ -74,3 +74,84 @@ def organize_files(target_dir=".", dry_run=False):
         print(f"\n[+] Successfully organized {moved_count} recipe file(s).")
 
     return stats
+    def load_recipe_data(recipe_path):
+    try:
+        with open(recipe_path, "r", encoding="utf-8") as file:
+            lines = [line.strip() for line in file if line.strip()]
+
+        if not lines:
+            return None, None
+
+        ingredients = {
+            item.strip().lower()
+            for item in lines[0].split(",")
+            if item.strip()
+        }
+
+        instructions = lines[1:] if len(lines) > 1 else []
+
+        return ingredients, instructions
+
+    except Exception as error:
+        print(
+            f"[!] Error reading recipe '{os.path.basename(recipe_path)}': {error}"
+        )
+        return None, None
+
+def suggest_recipes(target_dir, available_ingredients, category_choice):
+    folder_path = os.path.join(target_dir, CATEGORIES[category_choice])
+
+    try:
+        filenames = sorted(os.listdir(folder_path))
+    except FileNotFoundError:
+        print("[-] No recipe folder found for this category yet.")
+        return
+
+    available_set = set(available_ingredients)
+    suggestions = []
+
+    for filename in filenames:
+        recipe_path = os.path.join(folder_path, filename)
+
+        if not os.path.isfile(recipe_path) or not filename.lower().endswith(
+            ".txt"
+        ):
+            continue
+
+        recipe_ingredients, instructions = load_recipe_data(recipe_path)
+
+        if not recipe_ingredients:
+            continue
+
+        common_ingredients = recipe_ingredients.intersection(available_set)
+
+        if common_ingredients:
+            missing = sorted(recipe_ingredients - available_set)
+            recipe_name = (
+                os.path.splitext(filename)[0]
+                .replace("_", " ")
+                .replace("-", " ")
+                .title()
+            )
+            suggestions.append((recipe_name, missing, instructions))
+
+    if not suggestions:
+        print("\n[-] No recipes match your current ingredients.")
+        return
+
+    print("\n" + "=" * 45)
+    print(">>> RECIPE SUGGESTIONS & MISSING INGREDIENTS <<<")
+    print("=" * 45)
+
+    for name, missing, instructions in suggestions:
+        print(f"\n- {name}")
+        if missing:
+            print(f"  * Missing Ingredients: {', '.join(missing)}")
+        else:
+            print("  * You have all ingredients in your inventory!")
+
+        if instructions:
+            print("  * Instructions:")
+            for step in instructions:
+                print(f"    {step}")
+                
