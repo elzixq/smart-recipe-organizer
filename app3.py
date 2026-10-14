@@ -154,4 +154,80 @@ def suggest_recipes(target_dir, available_ingredients, category_choice):
             print("  * Instructions:")
             for step in instructions:
                 print(f"    {step}")
-                
+
+ def read_ingredients(filename="ingredients.txt"):
+    ingredients = []
+    try:
+        with open(filename, "r", encoding="utf-8") as file:
+            for line in file:
+                ingredient = line.strip().lower()
+                if ingredient:
+                    ingredients.append(ingredient)
+    except FileNotFoundError:
+        print(f"[!] '{filename}' not found. Starting with an empty inventory.")
+    except Exception as error:
+        print(f"[!] Could not read ingredient list: {error}")
+
+    return ingredients
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Smart Recipe Organizer & Kitchen Assistant"
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview planned file moves without executing them.",
+    )
+    parser.add_argument(
+        "--directory",
+        default=".",
+        help="Directory containing recipes and ingredients.txt.",
+    )
+
+    args = parser.parse_args()
+    target_dir = os.path.abspath(args.directory)
+
+    organize_files(target_dir=target_dir, dry_run=args.dry_run)
+
+    if args.dry_run:
+        print("\nExiting simulation mode.")
+        return
+
+    ingredients_path = os.path.join(target_dir, "ingredients.txt")
+    available_ingredients = read_ingredients(ingredients_path)
+
+    while True:
+        try:
+            shown_ingredients = ", ".join(available_ingredients) or "None"
+            print(f"\n[Available Ingredients]: {shown_ingredients}")
+
+            choice = (
+                input(
+                    "Select meal (breakfast / main / dessert) or 'q' to quit: "
+                )
+                .strip()
+                .lower()
+            )
+
+            if choice == "q":
+                print("Exiting Kitchen Assistant. Goodbye!")
+                break
+
+            if choice not in CATEGORIES:
+                print(
+                    "[-] Invalid choice. Please enter 'breakfast', 'main', 'dessert', or 'q'."
+                )
+                continue
+
+            suggest_recipes(target_dir, available_ingredients, choice)
+
+        except (KeyboardInterrupt, EOFError):
+            print("\nProgram interrupted. Exiting safely.")
+            break
+
+
+if __name__ == "__main__":
+    main()
+                   
