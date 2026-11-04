@@ -70,3 +70,99 @@ def deduplicate_records_by_id(records):
     for record in records:
         by_id[record["id"]] = record
     return list(by_id.values())
+# ==============================================================================
+# 2. THEMEALDB & WEB SCRAPING MODULE 
+# ==============================================================================
+
+def fetch_meal_details(meal_id):
+    """Fetch meal details and ingredients using lookup endpoint."""
+    try:
+        url = f"{THEMEALDB_LOOKUP_URL}?i={meal_id}"
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        data = json.loads(resp.text)
+        meals = data.get("meals")
+        if not meals:
+            return None
+
+        m = meals[0]
+        title = clean_whitespace(m.get("strMeal", "Daily Meal"))
+        ingredients = set()
+        for i in range(1, 21):
+            ing = m.get(f"strIngredient{i}")
+            if ing and ing.strip():
+                clean_ing = clean_whitespace(ing).lower()
+                token = clean_ing.split()[-1].strip(".,;:-")
+                if token:
+                    ingredients.add(token)
+
+        return {
+            "id": meal_id,
+            "title": title,
+            "url": f"https://www.themealdb.com/meal/{meal_id}",
+            "ingredients": list(ingredients)
+        }
+    except requests.RequestException as error:
+        print(f"Error fetching meal {meal_id}: {error}")
+        return None
+
+
+def generate_daily_4course_menu():
+    """
+    Selects 1 Breakfast, 1 Starter/Soup, 1 Main, and 1 Dessert from TheMealDB.
+    Returns the menu dict and the set of ingredients needed for today.
+    """
+    print("🍳 Fetching today's 4-course menu from TheMealDB...")
+    daily_menu = {}
+    today_groceries = set()
+
+    for course_name, api_category in MENU_CATEGORIES.items():
+        try:
+            url = f"{THEMEALDB_FILTER_URL}?c={api_category}"
+            resp = requests.get(url, timeout=5)
+            resp.raise_for_status()
+            data = json.loads(resp.text)
+            meals = data.get("meals", [])
+
+            if meals:
+                selected_meal = meals[0]
+                meal_id = selected_meal.get("idMeal")
+                details = fetch_meal_details(meal_id)
+                if details:
+                    daily_menu[course_name] = details
+                    today_groceries.update(details["ingredients"])
+                    time.sleep(0.2)
+                    continue
+
+            # Fallback data if category is empty
+            daily_menu[course_name] = {
+                "id": f"FALLBACK_{course_name}",
+                "title": f"Classic {course_name}",
+                "url": "https://www.themealdb.com",
+                "ingredients": ["egg", "milk", "tomato"]
+            }
+        except requests.RequestException:
+            # Fallback if connection fails
+            daily_menu[course_name] = {
+                "id": f"DEFAULT_{course_name}",
+                "title": f"Traditional {course_name}",
+                "url": "https://www.themealdb.com",
+                "ingredients": ["bread", "cheese", "tea"]
+            }
+
+    return daily_menu, today_groceries
+
+
+def scrape_recipe_page(recipe_url):
+    """
+    Demonstrates BeautifulSoup HTML extraction directly from a recipe page URL (Week 4, Slide 10-14).
+    """
+    try:
+        resp = requests.get(recipe_url, timeout=5)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        heading = soup.select_one("h1") or soup.select_one("h2")
+        title = clean_whitespace(heading.get_text()) if heading else "Recipe Details"
+        return title
+    except requests.RequestException:
+        return "TheMealDB Recipe Page"
