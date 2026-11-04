@@ -222,3 +222,65 @@ def find_recipes_for_ingredient(recipe_book, daily_menu, ingredient_name):
             matched.append(f"Local Recipe: {r_name}")
 
     return matched
+# ==============================================================================
+# 4. OPEN FOOD FACTS API FETCH & RETRIES 
+# ==============================================================================
+
+def fetch_with_retry(url, max_attempts=3):
+    """Transient failure retry with 1s, then 2s backoff (Week 4, Slide 5 & 34)."""
+    wait_sec = 1
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = requests.get(url, timeout=5)
+            if resp.status_code in (401, 403):
+                print(f"Access denied ({resp.status_code}). Stopping.")
+                return None
+            resp.raise_for_status()
+            return resp.text
+        except requests.RequestException as error:
+            print(f"Attempt {attempt} failed: {error}")
+            if attempt < max_attempts:
+                print(f"Waiting {wait_sec}s before retry...")
+                time.sleep(wait_sec)
+                wait_sec *= 2
+    return None
+
+
+def fetch_ingredient_prices(ingredient_name):
+    """Query Open Food Facts Prices API using urlencode (Week 4, Slide 6 & 20)."""
+    query = urlencode({"product_name__like": ingredient_name.lower().strip(), "size": 3})
+    full_url = f"{PRICES_API_URL}?{query}"
+
+    raw_json = fetch_with_retry(full_url)
+    if raw_json is None:
+        return []
+
+    try:
+        data = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return []
+
+    items = data.get("items")
+    if not items:
+        return []
+
+    valid_records = []
+    for item in items:
+        rec_id = str(item.get("id", "")).strip()
+        product = item.get("product") or {}
+        p_name = product.get("product_name") or ingredient_name
+        currency = item.get("currency") or "EUR"
+        price_val = item.get("price")
+
+        record = {
+            "id": f"OFF_{rec_id}",
+            "ingredient": ingredient_name,
+            "product_name": clean_whitespace(p_name),
+            "price": float(price_val) if price_val is not None else None,
+            "currency": currency
+        }
+
+        if validate_price_record(record):
+            valid_records.append(record)
+
+    return deduplicate_records_by_id(valid_records)
