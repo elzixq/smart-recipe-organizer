@@ -166,3 +166,59 @@ def scrape_recipe_page(recipe_url):
         return title
     except requests.RequestException:
         return "TheMealDB Recipe Page"
+# ==============================================================================
+# 3. LOCAL RECIPES & MATCHING ENGINE 
+# ==============================================================================
+
+def load_local_recipes(recipes_folder):
+    """
+    Reads existing .txt recipe files so newly scraped items don't delete them.
+    (Week 2, Slide 24-28).
+    """
+    recipe_book = {
+        "Pancakes": {"flour", "milk", "egg", "butter"},
+        "Chicken Rice": {"chicken", "rice", "onion"},
+        "Tomato Soup": {"tomato", "butter", "flour"}
+    }
+    if not os.path.isdir(recipes_folder):
+        return recipe_book
+
+    for filename in sorted(os.listdir(recipes_folder)):
+        filepath = os.path.join(recipes_folder, filename)
+        if not os.path.isfile(filepath):
+            continue
+
+        recipe_name = os.path.splitext(filename)[0]
+        ingredients = set()
+
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                clean_line = line.strip().lower()
+                if clean_line.startswith("ingredient:") or clean_line.startswith("-"):
+                    parts = clean_line.replace("ingredient:", "").replace("-", "").strip()
+                    if parts:
+                        token = parts.split()[0].strip(".,;")
+                        ingredients.add(token)
+
+        if ingredients:
+            recipe_book[recipe_name] = ingredients
+
+    return recipe_book
+
+
+def find_recipes_for_ingredient(recipe_book, daily_menu, ingredient_name):
+    """Finds which local recipes or daily menu items use this discounted ingredient."""
+    matched = []
+    ing_lower = ingredient_name.lower()
+
+    # Search in daily menu items
+    for course, item in daily_menu.items():
+        if any(ing_lower in x or x in ing_lower for x in item.get("ingredients", [])):
+            matched.append(f"{course}: {item['title']}")
+
+    # Search in local recipes
+    for r_name, ings in recipe_book.items():
+        if any(ing_lower in x or x in ing_lower for x in ings):
+            matched.append(f"Local Recipe: {r_name}")
+
+    return matched
